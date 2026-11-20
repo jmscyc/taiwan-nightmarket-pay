@@ -4,8 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>全台夜市 x 行動支付優惠即時通</title>
-  <meta name="description" content="自動追蹤街口支付、台灣Pay、LINE Pay、悠遊付、全支付各大夜市最新吃喝回饋與名額額滿狀態！">
-  <meta name="theme-color" content="#1a1a24">
+  <meta name="description" content="自動追蹤街口支付、台灣Pay、LINE Pay、悠遊付、全支付各大夜市最新吃喝回饋、回饋率高低排行與名額額滿狀態！">
+  <meta name="theme-color" content="#12141a">
   <link rel="manifest" href="manifest.json">
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
@@ -16,6 +16,9 @@
           colors: {
             brand: '#ff4b4b',
             neon: '#00f2fe',
+            gold: '#fbbf24',
+            silver: '#94a3b8',
+            bronze: '#d97706',
             cardbg: '#1e212b',
             darkbg: '#12141a'
           }
@@ -43,20 +46,27 @@
       color: #9ca3af;
       border: 1px solid rgba(156, 163, 175, 0.4);
     }
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    .no-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
   </style>
 </head>
-<body class="bg-darkbg text-gray-100 min-h-screen pb-20 select-none">
+<body class="bg-darkbg text-gray-100 min-h-screen pb-24 select-none">
 
   <!-- 頂部導覽列 -->
   <header class="sticky top-0 z-50 bg-darkbg/90 backdrop-blur-md border-b border-gray-800 px-4 py-3.5 flex items-center justify-between">
     <div class="flex items-center space-x-2">
       <span class="text-2xl">🍢</span>
       <div>
-        <h1 class="text-base font-bold tracking-wide text-white flex items-center gap-1.5">
-          夜市支付優惠即時通
-          <span class="text-[10px] bg-red-600/80 text-white font-medium px-1.5 py-0.5 rounded-full">即時額滿監控</span>
+        <h1 class="text-base font-bold tracking-wide text-white flex items-center gap-1.5" id="header-title">
+          全台夜市支付回饋榜
+          <span class="text-[10px] bg-red-600/80 text-white font-medium px-1.5 py-0.5 rounded-full">即時名額監控</span>
         </h1>
-        <p class="text-[11px] text-gray-400">當周各大夜市回饋 & 名額結束警示</p>
+        <p class="text-[11px] text-gray-400" id="header-subtitle">有效優惠依回饋比例高至低排序</p>
       </div>
     </div>
     <button onclick="refreshData()" class="p-2 rounded-xl bg-gray-800 text-gray-300 hover:text-white active:scale-95 transition" title="重新整理">
@@ -68,139 +78,309 @@
 
   <main class="max-w-md mx-auto px-4 pt-4 space-y-4">
 
-    <!-- 狀態標籤篩選 Tabs -->
-    <div class="flex bg-gray-900 p-1 rounded-xl border border-gray-800 text-xs font-medium">
-      <button onclick="setStatusTab('ALL')" id="tab-ALL" class="flex-1 py-2 rounded-lg text-center transition bg-gray-800 text-white shadow-sm font-semibold">
-        全部 (<span id="count-all">0</span>)
-      </button>
-      <button onclick="setStatusTab('ACTIVE')" id="tab-ACTIVE" class="flex-1 py-2 rounded-lg text-center transition text-gray-400 hover:text-white">
-        🔥 進行中 (<span id="count-active">0</span>)
-      </button>
-      <button onclick="setStatusTab('FULL')" id="tab-FULL" class="flex-1 py-2 rounded-lg text-center transition text-gray-400 hover:text-white">
-        ⚠️ 已額滿/結束 (<span id="count-full">0</span>)
-      </button>
-    </div>
-
-    <!-- 搜尋與快選 -->
-    <div class="space-y-2.5">
-      <div class="relative">
-        <input 
-          type="text" 
-          id="search-input" 
-          oninput="handleSearch()"
-          placeholder="搜尋夜市 (如：寧夏、士林、逢甲) 或 支付方式..." 
-          class="w-full bg-cardbg border border-gray-700/80 rounded-xl px-4 py-2.5 pl-10 text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:border-red-500 transition shadow-inner"
-        >
-        <span class="absolute left-3.5 top-2.5 text-gray-500">🔍</span>
+    <!-- 頁面 1: 🏆 回饋榜首頁 (Active Promotions Ranked by Discount Rate) -->
+    <section id="view-ranking" class="space-y-4">
+      
+      <!-- 統計與亮點 Banner -->
+      <div class="bg-gradient-to-br from-red-950/60 via-cardbg to-darkbg border border-red-900/40 rounded-2xl p-4 shadow-sm relative overflow-hidden">
+        <div class="absolute -right-2 -bottom-2 text-6xl opacity-10">💰</div>
+        <div class="flex items-center justify-between">
+          <div>
+            <div class="text-[11px] font-bold text-red-400 tracking-wider uppercase">✨ 本週精選推薦</div>
+            <h2 class="text-lg font-black text-white mt-0.5">最高回饋達 <span class="text-brand text-2xl" id="max-rate">20%</span></h2>
+          </div>
+          <div class="text-right">
+            <div class="text-[11px] text-gray-400">目前有效回饋</div>
+            <div class="text-lg font-black text-neon"><span id="active-promo-count">0</span> <span class="text-xs font-normal text-gray-400">檔活動</span></div>
+          </div>
+        </div>
+        <p class="text-xs text-gray-400 mt-2.5 leading-relaxed">
+          已自動過濾額滿及過期項目，僅展示當前<strong class="text-green-400 font-semibold">尚有名額</strong>的夜市與商圈，依回饋率由高至低排名。
+        </p>
       </div>
 
-      <!-- 快速過濾標籤 (Chips) -->
-      <div class="flex gap-1.5 overflow-x-auto no-scrollbar py-1 text-xs">
-        <button onclick="setFilter('payment', '')" class="chip active-chip px-3 py-1 rounded-full bg-gray-800 border border-gray-700 text-gray-300 whitespace-nowrap">全部支付</button>
-        <button onclick="setFilter('payment', '台灣Pay')" class="chip px-3 py-1 rounded-full bg-gray-800 border border-gray-700 text-gray-400 hover:text-white whitespace-nowrap">台灣Pay</button>
-        <button onclick="setFilter('payment', '街口支付')" class="chip px-3 py-1 rounded-full bg-gray-800 border border-gray-700 text-gray-400 hover:text-white whitespace-nowrap">街口支付</button>
-        <button onclick="setFilter('payment', 'LINE Pay')" class="chip px-3 py-1 rounded-full bg-gray-800 border border-gray-700 text-gray-400 hover:text-white whitespace-nowrap">LINE Pay</button>
-        <button onclick="setFilter('payment', '全支付')" class="chip px-3 py-1 rounded-full bg-gray-800 border border-gray-700 text-gray-400 hover:text-white whitespace-nowrap">全支付</button>
-        <button onclick="setFilter('payment', '悠遊付')" class="chip px-3 py-1 rounded-full bg-gray-800 border border-gray-700 text-gray-400 hover:text-white whitespace-nowrap">悠遊付</button>
+      <!-- 商圈/夜市速篩標籤 -->
+      <div class="space-y-1.5">
+        <div class="text-xs font-bold text-gray-400 flex items-center justify-between">
+          <span>📍 逛哪裡？快速依夜市/商圈看優惠</span>
+          <span id="ranking-filtered-count" class="text-[11px] text-gray-500 font-normal"></span>
+        </div>
+        <div class="flex gap-1.5 overflow-x-auto no-scrollbar py-1 text-xs" id="market-chips">
+          <!-- 由 JS 動態產生夜市商圈快速標籤 -->
+        </div>
       </div>
-    </div>
 
-    <!-- 額滿提醒 Banner -->
-    <div class="bg-gradient-to-r from-red-950/40 via-red-900/20 to-transparent border border-red-800/40 rounded-xl p-3 flex items-start gap-2.5 text-xs text-red-200">
-      <span class="text-base">📢</span>
-      <p class="leading-relaxed">
-        部分夜市回饋常於月初或發放首週快速額滿，標示 <span class="bg-red-500/20 text-red-400 font-bold px-1 py-0.5 rounded">⚠️ 已額滿</span> 的項目請勿白跑。若名額額滿會即時推播 Telegram！
-      </p>
-    </div>
+      <!-- 排名列表 -->
+      <div id="ranking-list" class="space-y-3">
+        <!-- 動態載入 -->
+      </div>
+    </section>
 
-    <!-- 活動列表容器 -->
-    <div id="promotions-list" class="space-y-3">
-      <!-- 動態載入 -->
-    </div>
+    <!-- 頁面 2: 🔍 全功能搜尋與額滿查詢頁面 (All Promotions & Quota Monitor) -->
+    <section id="view-search" class="hidden space-y-4">
+      
+      <!-- 狀態標籤篩選 Tabs -->
+      <div class="flex bg-gray-900 p-1 rounded-xl border border-gray-800 text-xs font-medium">
+        <button onclick="setStatusTab('ALL')" id="tab-ALL" class="flex-1 py-2 rounded-lg text-center transition bg-gray-800 text-white shadow-sm font-semibold">
+          全部 (<span id="count-all">0</span>)
+        </button>
+        <button onclick="setStatusTab('ACTIVE')" id="tab-ACTIVE" class="flex-1 py-2 rounded-lg text-center transition text-gray-400 hover:text-white">
+          🔥 進行中 (<span id="count-active">0</span>)
+        </button>
+        <button onclick="setStatusTab('FULL')" id="tab-FULL" class="flex-1 py-2 rounded-lg text-center transition text-gray-400 hover:text-white">
+          ⚠️ 已額滿/結束 (<span id="count-full">0</span>)
+        </button>
+      </div>
+
+      <!-- 搜尋與支付方式過濾 -->
+      <div class="space-y-2.5">
+        <div class="relative">
+          <input 
+            type="text" 
+            id="search-input" 
+            oninput="handleSearch()"
+            placeholder="搜尋夜市 (如：寧夏、士林、逢甲) 或 支付方式..." 
+            class="w-full bg-cardbg border border-gray-700/80 rounded-xl px-4 py-2.5 pl-10 text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:border-red-500 transition shadow-inner"
+          >
+          <span class="absolute left-3.5 top-2.5 text-gray-500">🔍</span>
+        </div>
+
+        <div class="flex gap-1.5 overflow-x-auto no-scrollbar py-1 text-xs">
+          <button onclick="setFilter('payment', '')" class="chip active-chip px-3 py-1 rounded-full bg-gray-800 border border-gray-700 text-gray-300 whitespace-nowrap">全部支付</button>
+          <button onclick="setFilter('payment', '台灣Pay')" class="chip px-3 py-1 rounded-full bg-gray-800 border border-gray-700 text-gray-400 hover:text-white whitespace-nowrap">台灣Pay</button>
+          <button onclick="setFilter('payment', '街口支付')" class="chip px-3 py-1 rounded-full bg-gray-800 border border-gray-700 text-gray-400 hover:text-white whitespace-nowrap">街口支付</button>
+          <button onclick="setFilter('payment', 'LINE Pay')" class="chip px-3 py-1 rounded-full bg-gray-800 border border-gray-700 text-gray-400 hover:text-white whitespace-nowrap">LINE Pay</button>
+          <button onclick="setFilter('payment', '全支付')" class="chip px-3 py-1 rounded-full bg-gray-800 border border-gray-700 text-gray-400 hover:text-white whitespace-nowrap">全支付</button>
+          <button onclick="setFilter('payment', '悠遊付')" class="chip px-3 py-1 rounded-full bg-gray-800 border border-gray-700 text-gray-400 hover:text-white whitespace-nowrap">悠遊付</button>
+        </div>
+      </div>
+
+      <!-- 額滿提醒卡片 -->
+      <div class="bg-gradient-to-r from-red-950/40 via-red-900/20 to-transparent border border-red-800/40 rounded-xl p-3 flex items-start gap-2.5 text-xs text-red-200">
+        <span class="text-base">📢</span>
+        <p class="leading-relaxed">
+          部分活動因預算限制可能提前額滿，標示 <span class="bg-red-500/20 text-red-400 font-bold px-1 py-0.5 rounded">⚠️ 已額滿</span> 的項目請勿白跑，官方額滿公告會即時更新！
+        </p>
+      </div>
+
+      <!-- 所有活動清單 -->
+      <div id="promotions-list" class="space-y-3">
+        <!-- 動態載入 -->
+      </div>
+    </section>
 
     <!-- 空狀態 -->
     <div id="empty-state" class="hidden text-center py-12 text-gray-500 space-y-2">
       <div class="text-4xl">🔍</div>
       <p class="text-sm font-medium">找不到符合條件的夜市或優惠</p>
-      <p class="text-xs text-gray-600">可以嘗試切換「全部」標籤或清除關鍵字</p>
+      <p class="text-xs text-gray-600">可以嘗試清除篩選標籤</p>
     </div>
   </main>
 
+  <!-- 底部手機導覽列 (Bottom Navigation Bar) -->
+  <nav class="fixed bottom-0 left-0 right-0 z-50 bg-darkbg/95 backdrop-blur-lg border-t border-gray-800 px-6 py-2 flex items-center justify-around max-w-md mx-auto">
+    <button onclick="switchView('ranking')" id="nav-ranking" class="flex flex-col items-center gap-1 text-brand font-bold transition">
+      <span class="text-lg">🏆</span>
+      <span class="text-[11px]">回饋排行榜</span>
+    </button>
+    <button onclick="switchView('search')" id="nav-search" class="flex flex-col items-center gap-1 text-gray-500 hover:text-gray-300 font-medium transition">
+      <span class="text-lg">🔍</span>
+      <span class="text-[11px]">夜市搜尋與額滿</span>
+    </button>
+  </nav>
+
   <script>
     let allPromotions = [];
+    let currentView = 'ranking'; // 預設為主頁：回饋排行榜
+    let selectedMarket = ''; // 排行榜商圈過濾
     let currentTab = 'ALL';
     let currentPaymentFilter = '';
     let searchQuery = '';
+
+    // 解析回饋趴數以進行數值排序
+    function parseRate(discountRateStr) {
+      if (!discountRateStr) return 0;
+      const match = discountRateStr.match(/(\d+(\.\d+)?)/);
+      return match ? parseFloat(match[1]) : 0;
+    }
 
     async function loadData() {
       try {
         const res = await fetch('data/promotions.json?t=' + new Date().getTime());
         allPromotions = await res.json();
         updateCounts();
-        render();
+        renderMarketChips();
+        renderRankingView();
+        renderSearchView();
       } catch (e) {
         console.error('Failed to load promotions:', e);
-        document.getElementById('promotions-list').innerHTML = `
-          <div class="p-4 bg-red-900/30 border border-red-700 rounded-xl text-center text-sm text-red-300">
-            載入資料失敗，請確認是否已放置 data/promotions.json
-          </div>
-        `;
       }
     }
 
     function updateCounts() {
-      const activeCount = allPromotions.filter(p => p.status === 'ACTIVE').length;
+      const activePromos = allPromotions.filter(p => p.status === 'ACTIVE');
+      const activeCount = activePromos.length;
       const fullCount = allPromotions.filter(p => p.status === 'FULL' || p.status === 'EXPIRED').length;
+      
       document.getElementById('count-all').innerText = allPromotions.length;
       document.getElementById('count-active').innerText = activeCount;
       document.getElementById('count-full').innerText = fullCount;
-    }
+      document.getElementById('active-promo-count').innerText = activeCount;
 
-    function setStatusTab(tab) {
-      currentTab = tab;
-      ['ALL', 'ACTIVE', 'FULL'].forEach(t => {
-        const btn = document.getElementById('tab-' + t);
-        if (t === tab) {
-          btn.className = 'flex-1 py-2 rounded-lg text-center transition bg-gray-800 text-white shadow-sm font-semibold';
-        } else {
-          btn.className = 'flex-1 py-2 rounded-lg text-center transition text-gray-400 hover:text-white';
-        }
+      // 計算最高回饋
+      let maxRate = 0;
+      activePromos.forEach(p => {
+        const r = parseRate(p.discount_rate || p.discount);
+        if (r > maxRate) maxRate = r;
       });
-      render();
+      document.getElementById('max-rate').innerText = maxRate ? `${maxRate}%` : '20%';
     }
 
-    function setFilter(type, val) {
-      if (type === 'payment') {
-        currentPaymentFilter = val;
-        document.querySelectorAll('.chip').forEach(btn => {
-          if (btn.innerText.includes(val || '全部支付')) {
-            btn.className = 'chip px-3 py-1 rounded-full bg-red-600/30 border border-red-500/60 text-red-300 whitespace-nowrap font-medium';
-          } else {
-            btn.className = 'chip px-3 py-1 rounded-full bg-gray-800 border border-gray-700 text-gray-400 hover:text-white whitespace-nowrap';
-          }
-        });
+    // 切換分頁（主頁: 排行榜 vs 搜尋/額滿頁）
+    function switchView(view) {
+      currentView = view;
+      const rankingView = document.getElementById('view-ranking');
+      const searchView = document.getElementById('view-search');
+      const navRanking = document.getElementById('nav-ranking');
+      const navSearch = document.getElementById('nav-search');
+      const title = document.getElementById('header-title');
+      const subtitle = document.getElementById('header-subtitle');
+
+      if (view === 'ranking') {
+        rankingView.classList.remove('hidden');
+        searchView.classList.add('hidden');
+        navRanking.className = 'flex flex-col items-center gap-1 text-brand font-bold transition';
+        navSearch.className = 'flex flex-col items-center gap-1 text-gray-500 hover:text-gray-300 font-medium transition';
+        title.innerHTML = `全台夜市支付回饋榜 <span class="text-[10px] bg-red-600/80 text-white font-medium px-1.5 py-0.5 rounded-full">即時名額監控</span>`;
+        subtitle.innerText = '有效優惠依回饋比例高至低排序';
+        renderRankingView();
+      } else {
+        rankingView.classList.add('hidden');
+        searchView.classList.remove('hidden');
+        navRanking.className = 'flex flex-col items-center gap-1 text-gray-500 hover:text-gray-300 font-medium transition';
+        navSearch.className = 'flex flex-col items-center gap-1 text-brand font-bold transition';
+        title.innerHTML = `夜市支付即時通 <span class="text-[10px] bg-red-600/80 text-white font-medium px-1.5 py-0.5 rounded-full">額滿監控</span>`;
+        subtitle.innerText = '查詢夜市、商圈支付優惠與額滿公告';
+        renderSearchView();
       }
-      render();
     }
 
-    function handleSearch() {
-      searchQuery = document.getElementById('search-input').value.trim().toLowerCase();
-      render();
+    // 渲染排行榜的夜市快速過濾 Chips
+    function renderMarketChips() {
+      const activePromos = allPromotions.filter(p => p.status === 'ACTIVE');
+      const markets = Array.from(new Set(activePromos.map(p => p.night_market)));
+      const container = document.getElementById('market-chips');
+      
+      let html = `<button onclick="filterMarket('')" class="market-chip px-3 py-1 rounded-full ${!selectedMarket ? 'bg-red-600/30 border border-red-500/60 text-red-300 font-bold' : 'bg-gray-800 border border-gray-700 text-gray-400'} whitespace-nowrap">全部夜市 (${activePromos.length})</button>`;
+      
+      markets.forEach(m => {
+        const count = activePromos.filter(p => p.night_market === m).length;
+        const isActive = selectedMarket === m;
+        html += `<button onclick="filterMarket('${m}')" class="market-chip px-3 py-1 rounded-full ${isActive ? 'bg-red-600/30 border border-red-500/60 text-red-300 font-bold' : 'bg-gray-800 border border-gray-700 text-gray-400 hover:text-white'} whitespace-nowrap">${m} (${count})</button>`;
+      });
+
+      container.innerHTML = html;
     }
 
-    function render() {
+    function filterMarket(market) {
+      selectedMarket = market;
+      renderMarketChips();
+      renderRankingView();
+    }
+
+    // 渲染主頁【回饋比例排行榜】
+    function renderRankingView() {
+      const container = document.getElementById('ranking-list');
+      const emptyState = document.getElementById('empty-state');
+
+      // 1. 只挑選有效 (ACTIVE) 的優惠
+      let activePromos = allPromotions.filter(p => p.status === 'ACTIVE');
+
+      // 2. 依夜市/商圈篩選
+      if (selectedMarket) {
+        activePromos = activePromos.filter(p => p.night_market === selectedMarket);
+      }
+
+      // 3. 依優惠比例由高到低排名
+      activePromos.sort((a, b) => {
+        return parseRate(b.discount_rate || b.discount) - parseRate(a.discount_rate || a.discount);
+      });
+
+      if (activePromos.length === 0) {
+        container.innerHTML = '';
+        emptyState.classList.remove('hidden');
+        return;
+      }
+
+      emptyState.classList.add('hidden');
+
+      container.innerHTML = activePromos.map((p, index) => {
+        const rank = index + 1;
+        let rankBadge = '';
+        let borderClass = 'border-gray-800 hover:border-gray-700';
+
+        if (rank === 1) {
+          rankBadge = `<span class="bg-gradient-to-r from-amber-500 to-yellow-300 text-black text-xs font-black px-2 py-0.5 rounded-full shadow-md flex items-center gap-1">🥇 冠軍</span>`;
+          borderClass = 'border-amber-500/40 bg-gradient-to-br from-amber-950/20 via-cardbg to-cardbg';
+        } else if (rank === 2) {
+          rankBadge = `<span class="bg-gradient-to-r from-slate-300 to-slate-400 text-black text-xs font-black px-2 py-0.5 rounded-full shadow-md flex items-center gap-1">🥈 亞軍</span>`;
+          borderClass = 'border-slate-500/40';
+        } else if (rank === 3) {
+          rankBadge = `<span class="bg-gradient-to-r from-amber-700 to-amber-600 text-white text-xs font-black px-2 py-0.5 rounded-full shadow-md flex items-center gap-1">🥉 季軍</span>`;
+          borderClass = 'border-amber-700/40';
+        } else {
+          rankBadge = `<span class="bg-gray-800 text-gray-400 text-xs font-bold px-2 py-0.5 rounded-full">第 ${rank} 名</span>`;
+        }
+
+        return `
+          <div class="bg-cardbg rounded-2xl p-4 border ${borderClass} transition space-y-3 shadow-sm relative">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-1.5">
+                ${rankBadge}
+                <span class="text-xs bg-gray-800 text-gray-300 font-semibold px-2 py-0.5 rounded-md">${p.city || '全台'}</span>
+                <span class="text-xs font-bold text-neon">${p.night_market}</span>
+              </div>
+              <span class="badge-active text-[11px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1">🟢 尚有名額</span>
+            </div>
+
+            <div class="flex items-baseline justify-between pt-1">
+              <div>
+                <span class="text-xs text-gray-400">${p.payment} 專屬優惠</span>
+                <h3 class="text-sm font-bold text-white leading-snug mt-0.5">${p.title}</h3>
+              </div>
+              <div class="text-right shrink-0 pl-3">
+                <span class="text-[11px] text-gray-400 block">回饋高達</span>
+                <span class="text-2xl font-black text-brand tracking-tight">${p.discount}</span>
+              </div>
+            </div>
+
+            <!-- 活動重點規則 -->
+            <p class="text-xs text-gray-300 bg-darkbg/70 p-2.5 rounded-xl border border-gray-800/80 leading-relaxed">
+              💡 ${p.rules_summary || p.status_note}
+            </p>
+
+            <div class="pt-1 flex items-center justify-between text-[11px] text-gray-500 border-t border-gray-800/60">
+              <span>📅 ${p.start_date} ~ ${p.end_date}</span>
+              <a href="${p.source_url}" target="_blank" class="text-blue-400 hover:text-blue-300 font-medium flex items-center gap-0.5">
+                活動官網 ↗
+              </a>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    // 渲染分頁【全部搜尋與額滿查詢】
+    function renderSearchView() {
       const container = document.getElementById('promotions-list');
       const emptyState = document.getElementById('empty-state');
 
       const filtered = allPromotions.filter(p => {
-        // Tab 篩選
         if (currentTab === 'ACTIVE' && p.status !== 'ACTIVE') return false;
         if (currentTab === 'FULL' && (p.status !== 'FULL' && p.status !== 'EXPIRED')) return false;
 
-        // Payment 篩選
         if (currentPaymentFilter && p.payment !== currentPaymentFilter) return false;
 
-        // 搜尋
         if (searchQuery) {
           const hay = `${p.night_market} ${p.title} ${p.payment} ${p.city || ''} ${p.discount}`.toLowerCase();
           if (!hay.includes(searchQuery)) return false;
@@ -249,13 +429,11 @@
               </div>
             </div>
 
-            <!-- 回饋亮點 -->
             <div class="flex items-center justify-between bg-darkbg/60 p-2.5 rounded-xl border border-gray-800/80">
               <span class="text-xs text-gray-400">活動回饋</span>
               <span class="text-base font-black text-brand tracking-tight">${p.discount}</span>
             </div>
 
-            <!-- 狀態備註 -->
             <div class="text-xs ${isFull ? 'text-red-300 bg-red-950/30 p-2 rounded-lg border border-red-900/40' : 'text-gray-400'} leading-relaxed">
               ${p.status_note || p.rules_summary}
             </div>
@@ -271,6 +449,38 @@
       }).join('');
     }
 
+    function setStatusTab(tab) {
+      currentTab = tab;
+      ['ALL', 'ACTIVE', 'FULL'].forEach(t => {
+        const btn = document.getElementById('tab-' + t);
+        if (t === tab) {
+          btn.className = 'flex-1 py-2 rounded-lg text-center transition bg-gray-800 text-white shadow-sm font-semibold';
+        } else {
+          btn.className = 'flex-1 py-2 rounded-lg text-center transition text-gray-400 hover:text-white';
+        }
+      });
+      renderSearchView();
+    }
+
+    function setFilter(type, val) {
+      if (type === 'payment') {
+        currentPaymentFilter = val;
+        document.querySelectorAll('.chip').forEach(btn => {
+          if (btn.innerText.includes(val || '全部支付')) {
+            btn.className = 'chip px-3 py-1 rounded-full bg-red-600/30 border border-red-500/60 text-red-300 whitespace-nowrap font-medium';
+          } else {
+            btn.className = 'chip px-3 py-1 rounded-full bg-gray-800 border border-gray-700 text-gray-400 hover:text-white whitespace-nowrap';
+          }
+        });
+      }
+      renderSearchView();
+    }
+
+    function handleSearch() {
+      searchQuery = document.getElementById('search-input').value.trim().toLowerCase();
+      renderSearchView();
+    }
+
     async function refreshData() {
       const icon = document.getElementById('refresh-icon');
       icon.classList.add('animate-spin');
@@ -278,7 +488,7 @@
       setTimeout(() => icon.classList.remove('animate-spin'), 600);
     }
 
-    // 初始化載入
+    // 初始化啟動
     loadData();
   </script>
 </body>
