@@ -3,592 +3,283 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>出國血拚即時比價助手 (跨國 & 日本藥妝 & 總額神省試算)</title>
-  <meta name="description" content="出國日本血拚必備：UNIQLO、無印良品、宜得利跨國比價；日本各大藥妝多店價格記錄比價；自動依購物總額推薦最佳優惠店家！">
-  <meta name="theme-color" content="#4f46e5">
-
-  <!-- PWA Manifest -->
+  <title>全台夜市 x 行動支付優惠即時通</title>
+  <meta name="description" content="自動追蹤街口支付、台灣Pay、LINE Pay、悠遊付、全支付各大夜市最新吃喝回饋與名額額滿狀態！">
+  <meta name="theme-color" content="#1a1a24">
   <link rel="manifest" href="manifest.json">
-  <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/3081/3081840.png">
-
-  <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
-  <!-- html5-qrcode 條碼掃描庫 -->
-  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
-
   <script>
-    // 註冊 Service Worker 實現無網路/地下室離線訪問
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./service-worker.js').catch(err => console.log('SW register fail:', err));
-      });
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: '#ff4b4b',
+            neon: '#00f2fe',
+            cardbg: '#1e212b',
+            darkbg: '#12141a'
+          }
+        }
+      }
     }
   </script>
-
   <style>
     body {
       -webkit-tap-highlight-color: transparent;
-      padding-bottom: env(safe-area-inset-bottom);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
     }
-    .hide-scrollbar::-webkit-scrollbar {
-      display: none;
+    .badge-active {
+      background: rgba(16, 185, 129, 0.2);
+      color: #10b981;
+      border: 1px solid rgba(16, 185, 129, 0.4);
     }
-    .hide-scrollbar {
-      -ms-overflow-style: none;
-      scrollbar-width: none;
+    .badge-full {
+      background: rgba(239, 68, 68, 0.2);
+      color: #ef4444;
+      border: 1px solid rgba(239, 68, 68, 0.4);
+    }
+    .badge-expired {
+      background: rgba(156, 163, 175, 0.2);
+      color: #9ca3af;
+      border: 1px solid rgba(156, 163, 175, 0.4);
     }
   </style>
 </head>
-<body class="bg-slate-100 text-slate-800 antialiased min-h-screen flex flex-col font-sans">
+<body class="bg-darkbg text-gray-100 min-h-screen pb-20 select-none">
 
-  <!-- 頂部導航欄與即時匯率 -->
-  <header class="bg-indigo-600 text-white sticky top-0 z-30 shadow-md">
-    <div class="max-w-md mx-auto px-4 py-2.5 flex items-center justify-between">
-      <div class="flex items-center space-x-2">
-        <span class="text-xl">✈️</span>
-        <div>
-          <h1 class="text-base font-bold leading-tight">出國即時比價助手</h1>
-          <p class="text-[10px] text-indigo-200">跨國品牌 · 藥妝多店 · 最佳店家算盤</p>
-        </div>
-      </div>
-      
-      <!-- 匯率狀態 -->
-      <div class="flex items-center space-x-1.5 bg-indigo-700/80 px-2.5 py-1 rounded-full text-xs">
-        <span class="text-indigo-200 text-[11px]">1 JPY ≈</span>
-        <span id="header-rate-val" class="font-bold text-amber-300">0.2150</span>
-        <span class="text-indigo-200 text-[11px]">NTD</span>
-        <button id="btn-refresh-rate" title="抓取最新即時匯率" class="text-xs hover:text-white transition ml-1">🔄</button>
-        <button id="btn-edit-rate" title="自訂換算匯率" class="text-xs hover:text-white transition">✏️</button>
-        <input type="hidden" id="header-rate-input" value="0.215">
+  <!-- 頂部導覽列 -->
+  <header class="sticky top-0 z-50 bg-darkbg/90 backdrop-blur-md border-b border-gray-800 px-4 py-3.5 flex items-center justify-between">
+    <div class="flex items-center space-x-2">
+      <span class="text-2xl">🍢</span>
+      <div>
+        <h1 class="text-base font-bold tracking-wide text-white flex items-center gap-1.5">
+          夜市支付優惠即時通
+          <span class="text-[10px] bg-red-600/80 text-white font-medium px-1.5 py-0.5 rounded-full">即時額滿監控</span>
+        </h1>
+        <p class="text-[11px] text-gray-400">當周各大夜市回饋 & 名額結束警示</p>
       </div>
     </div>
-
-    <!-- 模式分頁 Tabs (3 大核心模組) -->
-    <div class="max-w-md mx-auto grid grid-cols-3 text-center text-xs font-medium border-t border-indigo-500/50 bg-indigo-700/40">
-      <button id="tab-cross-border" class="py-2.5 border-b-2 border-white text-white font-bold flex items-center justify-center space-x-1 transition">
-        <span>🌏</span>
-        <span>跨國比價</span>
-      </button>
-      <button id="tab-domestic-drug" class="py-2.5 border-b-2 border-transparent text-indigo-200 hover:text-white flex items-center justify-center space-x-1 transition">
-        <span>💊</span>
-        <span>藥妝多店</span>
-      </button>
-      <button id="tab-optimizer" class="py-2.5 border-b-2 border-transparent text-indigo-200 hover:text-white flex items-center justify-center space-x-1 transition">
-        <span>🛒</span>
-        <span>最佳店家試算</span>
-      </button>
-    </div>
+    <button onclick="refreshData()" class="p-2 rounded-xl bg-gray-800 text-gray-300 hover:text-white active:scale-95 transition" title="重新整理">
+      <svg class="w-4 h-4" id="refresh-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+      </svg>
+    </button>
   </header>
 
-  <!-- 懸浮快速掃碼按鈕 (固定右下角) -->
-  <div class="fixed bottom-6 right-5 z-40">
-    <button id="btn-open-scanner" class="flex items-center space-x-1.5 bg-gradient-to-r from-rose-500 to-pink-600 text-white px-4 py-3 rounded-full shadow-xl hover:shadow-2xl active:scale-95 transition transform border-2 border-white">
-      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"></path>
-      </svg>
-      <span class="text-sm font-bold tracking-wide">掃描條碼</span>
-    </button>
-  </div>
+  <main class="max-w-md mx-auto px-4 pt-4 space-y-4">
 
-  <!-- 主內容容器 -->
-  <main class="flex-1 max-w-md w-full mx-auto p-4 space-y-4 pb-20">
+    <!-- 狀態標籤篩選 Tabs -->
+    <div class="flex bg-gray-900 p-1 rounded-xl border border-gray-800 text-xs font-medium">
+      <button onclick="setStatusTab('ALL')" id="tab-ALL" class="flex-1 py-2 rounded-lg text-center transition bg-gray-800 text-white shadow-sm font-semibold">
+        全部 (<span id="count-all">0</span>)
+      </button>
+      <button onclick="setStatusTab('ACTIVE')" id="tab-ACTIVE" class="flex-1 py-2 rounded-lg text-center transition text-gray-400 hover:text-white">
+        🔥 進行中 (<span id="count-active">0</span>)
+      </button>
+      <button onclick="setStatusTab('FULL')" id="tab-FULL" class="flex-1 py-2 rounded-lg text-center transition text-gray-400 hover:text-white">
+        ⚠️ 已額滿/結束 (<span id="count-full">0</span>)
+      </button>
+    </div>
 
-    <!-- ============================================== -->
-    <!-- VIEW 1: 跨國品牌比價 (UNIQLO / MUJI / 宜得利) -->
-    <!-- ============================================== -->
-    <section id="view-cross-border" class="space-y-4">
-      
-      <!-- 快速示範與品牌按鈕 -->
-      <div class="bg-white rounded-xl p-3 shadow-sm border border-slate-200">
-        <div class="flex items-center justify-between mb-2">
-          <span class="text-xs font-bold text-slate-700">熱門商品快速試算：</span>
-          <span class="text-[10px] text-slate-400">點擊載入</span>
-        </div>
-        <div id="cb-quick-samples" class="flex space-x-2 overflow-x-auto hide-scrollbar pb-1">
-          <!-- 由 JS 動態生成 -->
-        </div>
+    <!-- 搜尋與快選 -->
+    <div class="space-y-2.5">
+      <div class="relative">
+        <input 
+          type="text" 
+          id="search-input" 
+          oninput="handleSearch()"
+          placeholder="搜尋夜市 (如：寧夏、士林、逢甲) 或 支付方式..." 
+          class="w-full bg-cardbg border border-gray-700/80 rounded-xl px-4 py-2.5 pl-10 text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:border-red-500 transition shadow-inner"
+        >
+        <span class="absolute left-3.5 top-2.5 text-gray-500">🔍</span>
       </div>
 
-      <!-- 比價空狀態 (若尚未選擇商品) -->
-      <div id="cb-empty-state" class="hidden text-center py-10 bg-white rounded-2xl border border-dashed border-slate-300 p-6">
-        <div class="text-4xl mb-2">📷</div>
-        <p class="text-sm font-bold text-slate-700">請點擊右下角「掃描條碼」</p>
-        <p class="text-xs text-slate-500 mt-1">對準衣服、標籤上的 EAN 條碼，或點擊上方商品快速體驗。</p>
+      <!-- 快速過濾標籤 (Chips) -->
+      <div class="flex gap-1.5 overflow-x-auto no-scrollbar py-1 text-xs">
+        <button onclick="setFilter('payment', '')" class="chip active-chip px-3 py-1 rounded-full bg-gray-800 border border-gray-700 text-gray-300 whitespace-nowrap">全部支付</button>
+        <button onclick="setFilter('payment', '台灣Pay')" class="chip px-3 py-1 rounded-full bg-gray-800 border border-gray-700 text-gray-400 hover:text-white whitespace-nowrap">台灣Pay</button>
+        <button onclick="setFilter('payment', '街口支付')" class="chip px-3 py-1 rounded-full bg-gray-800 border border-gray-700 text-gray-400 hover:text-white whitespace-nowrap">街口支付</button>
+        <button onclick="setFilter('payment', 'LINE Pay')" class="chip px-3 py-1 rounded-full bg-gray-800 border border-gray-700 text-gray-400 hover:text-white whitespace-nowrap">LINE Pay</button>
+        <button onclick="setFilter('payment', '全支付')" class="chip px-3 py-1 rounded-full bg-gray-800 border border-gray-700 text-gray-400 hover:text-white whitespace-nowrap">全支付</button>
+        <button onclick="setFilter('payment', '悠遊付')" class="chip px-3 py-1 rounded-full bg-gray-800 border border-gray-700 text-gray-400 hover:text-white whitespace-nowrap">悠遊付</button>
       </div>
+    </div>
 
-      <!-- 商品比價卡片 -->
-      <div id="cb-product-card" class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden space-y-4">
-        
-        <!-- 商品資訊標頭 -->
-        <div class="p-4 bg-slate-50/70 border-b border-slate-200 flex space-x-3 items-center">
-          <img id="cb-prod-img" src="" alt="商品圖" class="w-16 h-16 rounded-lg object-cover border border-slate-200 bg-white flex-shrink-0 shadow-xs">
-          <div class="flex-1 min-w-0">
-            <span id="cb-prod-brand" class="inline-block px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-100 text-indigo-700 mb-1">UNIQLO</span>
-            <h2 id="cb-prod-name" class="text-sm font-bold text-slate-800 truncate">商品名稱</h2>
-            <p id="cb-prod-code" class="text-[11px] text-slate-500 font-mono mt-0.5">條碼: -</p>
-          </div>
-        </div>
+    <!-- 額滿提醒 Banner -->
+    <div class="bg-gradient-to-r from-red-950/40 via-red-900/20 to-transparent border border-red-800/40 rounded-xl p-3 flex items-start gap-2.5 text-xs text-red-200">
+      <span class="text-base">📢</span>
+      <p class="leading-relaxed">
+        部分夜市回饋常於月初或發放首週快速額滿，標示 <span class="bg-red-500/20 text-red-400 font-bold px-1 py-0.5 rounded">⚠️ 已額滿</span> 的項目請勿白跑。若名額額滿會即時推播 Telegram！
+      </p>
+    </div>
 
-        <!-- 官方價格與即時促銷活動對照輸入 -->
-        <div class="px-4 space-y-3">
-          
-          <!-- 日本專區 -->
-          <div class="bg-rose-50/50 rounded-xl p-3 border border-rose-100 space-y-2">
-            <div class="flex items-center justify-between">
-              <span class="text-xs font-bold text-rose-800 flex items-center">
-                <span class="mr-1">🇯🇵</span> 日本售價與店內活動
-              </span>
-              <a id="cb-link-jp" href="#" target="_blank" rel="noopener noreferrer" class="text-[11px] text-rose-600 hover:underline">
-                日本官網查價 ↗
-              </a>
-            </div>
-            
-            <div class="grid grid-cols-2 gap-2">
-              <div>
-                <label class="text-[10px] text-slate-500">日本原標價 (JPY)</label>
-                <div class="relative mt-0.5">
-                  <span class="absolute left-2.5 top-2 text-xs text-slate-400">¥</span>
-                  <input id="cb-jp-orig-price" type="number" class="w-full pl-6 pr-2 py-1.5 text-xs font-bold rounded-lg border border-slate-200 focus:ring-1 focus:ring-rose-500">
-                </div>
-              </div>
-              <div>
-                <label class="text-[10px] text-slate-500">店內活動價/限定特價 (JPY)</label>
-                <div class="relative mt-0.5">
-                  <span class="absolute left-2.5 top-2 text-xs text-rose-500 font-bold">¥</span>
-                  <input id="cb-jp-campaign-price" type="number" class="w-full pl-6 pr-2 py-1.5 text-xs font-bold text-rose-600 rounded-lg border border-rose-200 focus:ring-1 focus:ring-rose-500">
-                </div>
-              </div>
-            </div>
+    <!-- 活動列表容器 -->
+    <div id="promotions-list" class="space-y-3">
+      <!-- 動態載入 -->
+    </div>
 
-            <div>
-              <label class="text-[10px] text-slate-500">目前活動說明</label>
-              <input id="cb-jp-campaign" type="text" placeholder="例如：感謝祭限定優惠、買兩件折300" class="w-full mt-0.5 px-2.5 py-1 text-xs rounded-lg border border-slate-200">
-            </div>
-          </div>
-
-          <!-- 台灣專區 -->
-          <div class="bg-sky-50/50 rounded-xl p-3 border border-sky-100 space-y-2">
-            <div class="flex items-center justify-between">
-              <span class="text-xs font-bold text-sky-800 flex items-center">
-                <span class="mr-1">🇹🇼</span> 台灣專櫃售價與活動
-              </span>
-              <a id="cb-link-tw" href="#" target="_blank" rel="noopener noreferrer" class="text-[11px] text-sky-600 hover:underline">
-                台灣官網查價 ↗
-              </a>
-            </div>
-
-            <div class="grid grid-cols-2 gap-2">
-              <div>
-                <label class="text-[10px] text-slate-500">台灣原價 (NTD)</label>
-                <div class="relative mt-0.5">
-                  <span class="absolute left-2 top-2 text-xs text-slate-400">$</span>
-                  <input id="cb-tw-orig-price" type="number" class="w-full pl-5 pr-2 py-1.5 text-xs font-bold rounded-lg border border-slate-200 focus:ring-1 focus:ring-sky-500">
-                </div>
-              </div>
-              <div>
-                <label class="text-[10px] text-slate-500">台灣特惠價 (NTD)</label>
-                <div class="relative mt-0.5">
-                  <span class="absolute left-2 top-2 text-xs text-sky-600 font-bold">$</span>
-                  <input id="cb-tw-campaign-price" type="number" class="w-full pl-5 pr-2 py-1.5 text-xs font-bold text-sky-700 rounded-lg border border-sky-200 focus:ring-1 focus:ring-sky-500">
-                </div>
-              </div>
-            </div>
-
-            <div>
-              <label class="text-[10px] text-slate-500">台灣特惠活動說明</label>
-              <input id="cb-tw-campaign" type="text" placeholder="例如：新春特惠、APP會員限定" class="w-full mt-0.5 px-2.5 py-1 text-xs rounded-lg border border-slate-200">
-            </div>
-          </div>
-
-          <!-- 折扣參數微調 (免稅 / 優惠券 / 信用卡) -->
-          <div class="bg-amber-50/60 rounded-xl p-3 border border-amber-200 text-xs space-y-2.5">
-            <div class="flex items-center justify-between font-bold text-amber-900">
-              <span>💳 出國優惠試算參數</span>
-              <button id="cb-recalc-btn" class="text-xs px-2.5 py-1 rounded bg-amber-600 text-white hover:bg-amber-700">更新試算</button>
-            </div>
-
-            <div class="grid grid-cols-3 gap-2">
-              <label class="flex items-center space-x-1.5 cursor-pointer bg-white p-2 rounded-lg border border-amber-200">
-                <input id="cb-tax-free-check" type="checkbox" checked class="rounded text-amber-600">
-                <span class="text-[11px] font-semibold">退稅 10%</span>
-              </label>
-
-              <div class="bg-white p-1.5 rounded-lg border border-amber-200">
-                <span class="text-[9px] text-slate-400 block">優惠券額外折</span>
-                <select id="cb-extra-coupon" class="w-full text-[11px] font-bold bg-transparent">
-                  <option value="0">無折價券</option>
-                  <option value="5" selected>折 5% (外國人券)</option>
-                  <option value="7">折 7% (滿額券)</option>
-                  <option value="10">折 10% (MUJI週)</option>
-                </select>
-              </div>
-
-              <div class="bg-white p-1.5 rounded-lg border border-amber-200">
-                <span class="text-[9px] text-slate-400 block">海外回饋%</span>
-                <select id="cb-credit-cashback" class="w-full text-[11px] font-bold bg-transparent">
-                  <option value="0">0%</option>
-                  <option value="1.5">1.5% (抵手續費)</option>
-                  <option value="3" selected>3.0% (吉鶴/富邦J)</option>
-                  <option value="4.5">4.5% (高回饋卡)</option>
-                </select>
-              </div>
-            </div>
-          </div>
-
-        </div>
-
-        <!-- 比價結果與價差總結 (Result Card) -->
-        <div class="p-4 bg-gradient-to-br from-indigo-900 via-indigo-800 to-slate-900 text-white rounded-b-2xl space-y-3">
-          <div class="flex items-center justify-between">
-            <span class="text-xs font-semibold text-indigo-200">即時換算最終比價</span>
-            <span id="res-diff-badge" class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-400 text-slate-900">
-              現省 NT$ -
-            </span>
-          </div>
-
-          <div class="grid grid-cols-2 gap-3 pt-1">
-            <div class="border-r border-indigo-700/60 pr-2">
-              <span class="text-[11px] text-indigo-300 block">🇯🇵 日本入手價 (退稅+折價)</span>
-              <div id="res-jp-final-jpy" class="text-lg font-black text-amber-300">¥0</div>
-              <div id="res-jp-final-twd" class="text-xs text-indigo-200">約 NT$ 0</div>
-            </div>
-            <div class="pl-2">
-              <span class="text-[11px] text-indigo-300 block">🇹🇼 台灣售價 (活動後)</span>
-              <div id="res-tw-final-twd" class="text-lg font-black text-white">NT$ 0</div>
-              <div class="text-[10px] text-indigo-300">台灣官方專櫃標價</div>
-            </div>
-          </div>
-
-          <div id="res-diff-summary" class="bg-indigo-800/60 p-2.5 rounded-xl text-xs text-indigo-100 border border-indigo-600/40">
-            請點擊「更新試算」查看台日價差
-          </div>
-        </div>
-
-      </div>
-
-    </section>
-
-    <!-- ============================================== -->
-    <!-- VIEW 2: 日本藥妝多店比價 (松本清 / 唐吉 / 大國) -->
-    <!-- ============================================== -->
-    <section id="view-domestic-drug" class="hidden space-y-4">
-      
-      <!-- 各大藥妝店即時活動與優惠券 Carousel -->
-      <div class="space-y-1.5">
-        <div class="flex items-center justify-between px-1">
-          <span class="text-xs font-bold text-slate-700">各大藥妝店最新優惠券情報：</span>
-          <span class="text-[10px] text-indigo-600 font-semibold">出示可享折抵</span>
-        </div>
-        <div id="drug-coupons-carousel" class="flex space-x-3 overflow-x-auto hide-scrollbar pb-1">
-          <!-- 由 JS 動態生成折價券卡片 -->
-        </div>
-      </div>
-
-      <!-- 商品快速切換清單 (Chips) -->
-      <div class="bg-white rounded-xl p-3 shadow-sm border border-slate-200">
-        <div class="flex items-center justify-between mb-2">
-          <span class="text-xs font-bold text-slate-700">已記錄比價商品：</span>
-          <button id="btn-create-drug-prod" class="text-xs text-rose-600 font-bold hover:underline flex items-center">
-            ＋ 手動新增商品
-          </button>
-        </div>
-        <div id="drug-prod-chips" class="flex space-x-2 overflow-x-auto hide-scrollbar py-0.5">
-          <!-- 由 JS 渲染 -->
-        </div>
-      </div>
-
-      <!-- 藥妝無記錄空狀態 -->
-      <div id="drug-empty-view" class="hidden text-center py-12 bg-white rounded-2xl border border-dashed border-slate-300 p-6">
-        <div class="text-4xl mb-2">💊</div>
-        <p class="text-sm font-bold text-slate-700">尚未選擇或記錄商品</p>
-        <p class="text-xs text-slate-500 mt-1">請點擊右下角「掃描條碼」或「＋手動新增商品」</p>
-      </div>
-
-      <!-- 藥妝多店比價主卡片 -->
-      <div id="drug-detail-view" class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden space-y-4">
-        
-        <!-- 當前藥妝商品標頭 -->
-        <div class="p-4 bg-slate-50/80 border-b border-slate-200 flex space-x-3 items-center">
-          <img id="drug-prod-img" src="" alt="藥妝圖" class="w-16 h-16 rounded-lg object-cover border border-slate-200 bg-white flex-shrink-0 shadow-xs">
-          <div class="flex-1 min-w-0">
-            <div class="flex items-center justify-between">
-              <span class="inline-block px-2 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-700">藥妝比價</span>
-              <button onclick="DomesticDrugComparator.deleteProduct(DomesticDrugComparator.selectedProductId)" class="text-[11px] text-slate-400 hover:text-rose-600">
-                刪除商品
-              </button>
-            </div>
-            <h2 id="drug-prod-name" class="text-sm font-bold text-slate-800 truncate mt-0.5">商品名稱</h2>
-            <div class="flex items-center space-x-2 mt-1">
-              <span id="drug-prod-barcode" class="text-[10px] text-slate-500 font-mono">條碼: -</span>
-              <a id="drug-web-search" href="#" target="_blank" rel="noopener noreferrer" class="text-[10px] text-blue-600 hover:underline">
-                網路參考價 ↗
-              </a>
-            </div>
-          </div>
-        </div>
-
-        <!-- 最低價冠軍 Banner -->
-        <div id="drug-best-banner" class="mx-4 p-3 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 text-white font-medium shadow-xs">
-          <!-- 冠軍店家資訊 -->
-        </div>
-
-        <!-- 多店價格比價表 (Table) -->
-        <div class="px-4">
-          <div class="flex items-center justify-between mb-1.5">
-            <span class="text-xs font-bold text-slate-700">巡店價格紀錄總表</span>
-            <span class="text-[10px] text-slate-400">依未稅基準由低到高排序</span>
-          </div>
-
-          <div class="overflow-x-auto rounded-xl border border-slate-200">
-            <table class="w-full text-left text-xs">
-              <thead class="bg-slate-100 text-slate-500 font-medium border-b border-slate-200 text-[11px]">
-                <tr>
-                  <th class="py-2 px-2">店家 / 備註</th>
-                  <th class="py-2 px-2 text-right">日幣價格</th>
-                  <th class="py-2 px-2 text-right">約合台幣</th>
-                  <th class="py-2 px-1 text-center w-8">操作</th>
-                </tr>
-              </thead>
-              <tbody id="drug-stores-table-body" class="divide-y divide-slate-100 bg-white">
-                <!-- 由 JS 動態生成每間店的價格列 -->
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <!-- 記錄新店價格 Form (到了另一間店快速打開輸入) -->
-        <div class="p-4 bg-slate-50 border-t border-slate-200 space-y-3">
-          <div class="flex items-center justify-between">
-            <span class="text-xs font-bold text-slate-800 flex items-center">
-              <span>✍️</span>
-              <span class="ml-1">記錄當前店家價格</span>
-            </span>
-            <span class="text-[10px] text-slate-500">換店時秒速輸入</span>
-          </div>
-
-          <form id="add-price-form" class="space-y-2.5">
-            <div class="grid grid-cols-2 gap-2">
-              <div>
-                <label class="text-[10px] text-slate-500">選擇店家</label>
-                <select id="input-store-name" class="w-full mt-0.5 px-2 py-1.5 text-xs rounded-lg border border-slate-300 font-medium bg-white">
-                  <option value="唐吉訶德 (Donki)">唐吉訶德 (Donki)</option>
-                  <option value="松本清 (Matsukiyo)">松本清 (Matsukiyo)</option>
-                  <option value="大國藥妝 (Daikoku)">大國藥妝 (Daikoku)</option>
-                  <option value="Sundrug (尚都樂客)">Sundrug (尚都樂客)</option>
-                  <option value="鶴羽藥妝 (Tsuruha)">鶴羽藥妝 (Tsuruha)</option>
-                  <option value="Bic Camera (藥妝部)">Bic Camera (藥妝部)</option>
-                </select>
-              </div>
-
-              <div>
-                <label class="text-[10px] text-slate-500">或自訂分店名</label>
-                <input id="input-custom-store" type="text" placeholder="例: 澀谷店 / 難波店" class="w-full mt-0.5 px-2 py-1.5 text-xs rounded-lg border border-slate-300 bg-white">
-              </div>
-            </div>
-
-            <div class="grid grid-cols-2 gap-2 items-center">
-              <div>
-                <label class="text-[10px] text-slate-500">店內標價 (JPY)</label>
-                <div class="relative mt-0.5">
-                  <span class="absolute left-2.5 top-2 text-xs text-slate-400">¥</span>
-                  <input id="input-store-price" type="number" placeholder="5980" required class="w-full pl-6 pr-2 py-1.5 text-xs font-bold rounded-lg border border-slate-300 bg-white">
-                </div>
-              </div>
-
-              <div class="pt-3">
-                <label class="flex items-center space-x-1.5 cursor-pointer bg-white p-2 rounded-lg border border-slate-200">
-                  <input id="input-tax-included" type="checkbox" checked class="rounded text-indigo-600">
-                  <span class="text-xs text-slate-700 font-medium">標價為含稅價</span>
-                </label>
-              </div>
-            </div>
-
-            <div>
-              <label class="text-[10px] text-slate-500">優惠/促銷備註</label>
-              <input id="input-store-note" type="text" placeholder="例: 限購2瓶 / 滿三萬再折5% / 贈送試用品" class="w-full mt-0.5 px-2.5 py-1 text-xs rounded-lg border border-slate-300 bg-white">
-            </div>
-
-            <button type="submit" class="w-full py-2 bg-rose-600 hover:bg-rose-700 active:scale-[0.99] text-white text-xs font-bold rounded-xl shadow-sm transition">
-              儲存此店價格並加入比價
-            </button>
-          </form>
-        </div>
-
-      </div>
-
-    </section>
-
-    <!-- ============================================== -->
-    <!-- VIEW 3: 依購買總金額推薦最佳優惠店家 (新功能) -->
-    <!-- ============================================== -->
-    <section id="view-optimizer" class="hidden space-y-4">
-      
-      <!-- 總額試算輸入區 -->
-      <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200 space-y-3">
-        <div class="flex items-center justify-between">
-          <div class="flex items-center space-x-1.5">
-            <span class="text-base">🧮</span>
-            <h3 class="text-sm font-bold text-slate-800">總金額最佳店家算盤</h3>
-          </div>
-          <span class="text-[10px] px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 font-bold">智能滿額階梯</span>
-        </div>
-
-        <p class="text-xs text-slate-500 leading-relaxed">
-          輸入預計購買總日圓，或使用下方欲購清單，系統自動計算 <strong>退稅 10% + 各店滿額折價券 (3%~8%)</strong>，找出哪間店買最划算！
-        </p>
-
-        <!-- 快速自訂總預算輸入 -->
-        <div>
-          <label class="text-[11px] font-bold text-slate-700 block mb-1">快速輸入預算總額 (JPY):</label>
-          <div class="relative">
-            <span class="absolute left-3 top-2.5 text-sm text-slate-400 font-bold">¥</span>
-            <input id="cart-custom-budget" type="number" placeholder="例如: 12000 或 35000" class="w-full pl-8 pr-4 py-2 text-sm font-black rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500 bg-slate-50/50">
-          </div>
-          <div class="flex space-x-1.5 mt-2 overflow-x-auto hide-scrollbar">
-            <button onclick="document.getElementById('cart-custom-budget').value=5500; BasketOptimizer.calculateOptimalStore()" class="px-2.5 py-1 text-[11px] bg-slate-100 hover:bg-slate-200 rounded-lg font-medium text-slate-700 flex-shrink-0">¥5,500 (微過免稅)</button>
-            <button onclick="document.getElementById('cart-custom-budget').value=12000; BasketOptimizer.calculateOptimalStore()" class="px-2.5 py-1 text-[11px] bg-slate-100 hover:bg-slate-200 rounded-lg font-medium text-slate-700 flex-shrink-0">¥12,000 (啟動滿萬折)</button>
-            <button onclick="document.getElementById('cart-custom-budget').value=32000; BasketOptimizer.calculateOptimalStore()" class="px-2.5 py-1 text-[11px] bg-slate-100 hover:bg-slate-200 rounded-lg font-medium text-slate-700 flex-shrink-0">¥32,000 (滿3萬高折)</button>
-            <button onclick="document.getElementById('cart-custom-budget').value=55000; BasketOptimizer.calculateOptimalStore()" class="px-2.5 py-1 text-[11px] bg-slate-100 hover:bg-slate-200 rounded-lg font-medium text-slate-700 flex-shrink-0">¥55,000 (頂規7~8%)</button>
-          </div>
-        </div>
-
-        <!-- 免稅門檻進度條 (5,000 円) -->
-        <div class="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
-          <div class="flex items-center justify-between text-xs">
-            <span class="font-bold text-slate-700 flex items-center">
-              <span>🎌</span>
-              <span class="ml-1">日本免稅 5,000 円進度條</span>
-            </span>
-            <span id="taxfree-tag" class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800">
-              計算中
-            </span>
-          </div>
-
-          <div class="w-full bg-slate-200 h-2.5 rounded-full overflow-hidden">
-            <div id="taxfree-progress-bar" class="h-full bg-amber-400 rounded-full transition-all duration-500" style="width: 0%"></div>
-          </div>
-
-          <div id="taxfree-status-text" class="text-[11px] text-slate-600">
-            消費滿 5,000 日圓可享受 10% 免稅優惠
-          </div>
-        </div>
-
-        <!-- 購物車清單總結標頭 -->
-        <div class="pt-2 border-t border-slate-100 flex items-center justify-between">
-          <div>
-            <span class="text-[11px] text-slate-500 block">目前試算總基準額</span>
-            <div class="flex items-baseline space-x-1.5">
-              <span id="cart-total-jpy" class="text-lg font-black text-slate-900">¥0</span>
-              <span id="cart-total-twd" class="text-xs text-slate-500 font-medium">約 NT$ 0</span>
-            </div>
-          </div>
-          <div class="flex space-x-1.5">
-            <button id="btn-add-sample-to-cart" class="px-2.5 py-1 bg-indigo-50 text-indigo-700 text-xs font-bold rounded-lg hover:bg-indigo-100">
-              ＋加品項
-            </button>
-            <button id="btn-clear-cart" class="px-2 py-1 text-slate-400 hover:text-rose-500 text-xs">
-              清空
-            </button>
-          </div>
-        </div>
-
-        <!-- 購物車品項列表 -->
-        <div id="cart-items-list" class="space-y-1.5 max-h-48 overflow-y-auto">
-          <!-- 由 JS 渲染 -->
-        </div>
-      </div>
-
-      <!-- 最佳店家冠軍 Banner -->
-      <div id="optimizer-winner-banner" class="bg-gradient-to-r from-amber-500 via-orange-500 to-rose-600 text-white rounded-2xl p-4 shadow-md space-y-1">
-        <!-- 由 JS 渲染 -->
-      </div>
-
-      <!-- 全連鎖店比價排名前瞻 -->
-      <div class="space-y-2">
-        <div class="flex items-center justify-between px-1">
-          <span class="text-xs font-bold text-slate-700">各店實付金額排行榜 (由省到貴)</span>
-          <span class="text-[10px] text-slate-400">已扣除免稅與折價券</span>
-        </div>
-        
-        <div id="optimizer-rankings-container" class="space-y-2.5">
-          <!-- 由 JS 渲染排行榜卡片 -->
-        </div>
-      </div>
-
-    </section>
-
+    <!-- 空狀態 -->
+    <div id="empty-state" class="hidden text-center py-12 text-gray-500 space-y-2">
+      <div class="text-4xl">🔍</div>
+      <p class="text-sm font-medium">找不到符合條件的夜市或優惠</p>
+      <p class="text-xs text-gray-600">可以嘗試切換「全部」標籤或清除關鍵字</p>
+    </div>
   </main>
 
-  <!-- ============================================== -->
-  <!-- 條碼掃描相機視窗 Modal -->
-  <!-- ============================================== -->
-  <div id="scanner-modal" class="fixed inset-0 z-50 bg-black/80 flex flex-col items-center justify-center p-4 hidden backdrop-blur-xs">
-    <div class="bg-white rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl space-y-3 p-4">
-      <div class="flex items-center justify-between pb-2 border-b border-slate-100">
-        <h3 class="text-sm font-bold text-slate-800 flex items-center">
-          <span class="mr-1.5">📷</span> 相機條碼掃描
-        </h3>
-        <button id="btn-close-scanner" class="text-slate-400 hover:text-slate-700 text-lg font-bold px-2">✕</button>
-      </div>
+  <script>
+    let allPromotions = [];
+    let currentTab = 'ALL';
+    let currentPaymentFilter = '';
+    let searchQuery = '';
 
-      <!-- 相機預覽區域 -->
-      <div id="reader" class="w-full rounded-xl overflow-hidden bg-slate-900 border border-slate-200 min-h-[220px]"></div>
+    async function loadData() {
+      try {
+        const res = await fetch('data/promotions.json?t=' + new Date().getTime());
+        allPromotions = await res.json();
+        updateCounts();
+        render();
+      } catch (e) {
+        console.error('Failed to load promotions:', e);
+        document.getElementById('promotions-list').innerHTML = `
+          <div class="p-4 bg-red-900/30 border border-red-700 rounded-xl text-center text-sm text-red-300">
+            載入資料失敗，請確認是否已放置 data/promotions.json
+          </div>
+        `;
+      }
+    }
 
-      <p id="scanner-error-tip" class="hidden text-xs text-rose-600 bg-rose-50 p-2 rounded-lg"></p>
+    function updateCounts() {
+      const activeCount = allPromotions.filter(p => p.status === 'ACTIVE').length;
+      const fullCount = allPromotions.filter(p => p.status === 'FULL' || p.status === 'EXPIRED').length;
+      document.getElementById('count-all').innerText = allPromotions.length;
+      document.getElementById('count-active').innerText = activeCount;
+      document.getElementById('count-full').innerText = fullCount;
+    }
 
-      <!-- 手動備用輸入 -->
-      <div class="pt-2 border-t border-slate-100">
-        <span class="text-[11px] text-slate-500 block mb-1">若條碼模糊或鏡頭無法對焦，可手動輸入：</span>
-        <div class="flex space-x-2">
-          <input id="manual-barcode-input" type="text" placeholder="輸入條碼或型號..." class="flex-1 px-3 py-1.5 text-xs rounded-lg border border-slate-300 font-mono">
-          <button id="btn-manual-barcode-submit" class="px-3 py-1.5 bg-indigo-600 text-white text-xs font-bold rounded-lg hover:bg-indigo-700">
-            確認
-          </button>
-        </div>
-      </div>
-    </div>
-  </div>
+    function setStatusTab(tab) {
+      currentTab = tab;
+      ['ALL', 'ACTIVE', 'FULL'].forEach(t => {
+        const btn = document.getElementById('tab-' + t);
+        if (t === tab) {
+          btn.className = 'flex-1 py-2 rounded-lg text-center transition bg-gray-800 text-white shadow-sm font-semibold';
+        } else {
+          btn.className = 'flex-1 py-2 rounded-lg text-center transition text-gray-400 hover:text-white';
+        }
+      });
+      render();
+    }
 
-  <!-- ============================================== -->
-  <!-- 手動新增藥妝商品 Modal -->
-  <!-- ============================================== -->
-  <div id="create-prod-modal" class="fixed inset-0 z-50 bg-black/70 flex flex-col items-center justify-center p-4 hidden backdrop-blur-xs">
-    <div class="bg-white rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl p-4 space-y-3">
-      <div class="flex items-center justify-between pb-2 border-b border-slate-100">
-        <h3 class="text-sm font-bold text-slate-800">新增藥妝商品</h3>
-        <button onclick="DomesticDrugComparator.closeCreateProductModal()" class="text-slate-400 hover:text-slate-700 text-lg font-bold px-2">✕</button>
-      </div>
+    function setFilter(type, val) {
+      if (type === 'payment') {
+        currentPaymentFilter = val;
+        document.querySelectorAll('.chip').forEach(btn => {
+          if (btn.innerText.includes(val || '全部支付')) {
+            btn.className = 'chip px-3 py-1 rounded-full bg-red-600/30 border border-red-500/60 text-red-300 whitespace-nowrap font-medium';
+          } else {
+            btn.className = 'chip px-3 py-1 rounded-full bg-gray-800 border border-gray-700 text-gray-400 hover:text-white whitespace-nowrap';
+          }
+        });
+      }
+      render();
+    }
 
-      <div class="space-y-2.5 text-xs">
-        <div>
-          <label class="text-slate-500 block mb-1">條碼 (可選)</label>
-          <input id="modal-prod-barcode" type="text" placeholder="例如 4987123145167" class="w-full px-3 py-1.5 rounded-lg border border-slate-300 font-mono">
-        </div>
-        <div>
-          <label class="text-slate-500 block mb-1">商品名稱 *</label>
-          <input id="modal-prod-name" type="text" placeholder="例如：合利他命 EX PLUS 270錠" class="w-full px-3 py-1.5 rounded-lg border border-slate-300 font-bold">
-        </div>
-        <div>
-          <label class="text-slate-500 block mb-1">圖片網址 (可選)</label>
-          <input id="modal-prod-image" type="text" placeholder="https://..." class="w-full px-3 py-1.5 rounded-lg border border-slate-300">
-        </div>
-      </div>
+    function handleSearch() {
+      searchQuery = document.getElementById('search-input').value.trim().toLowerCase();
+      render();
+    }
 
-      <div class="flex space-x-2 pt-2">
-        <button onclick="DomesticDrugComparator.closeCreateProductModal()" class="flex-1 py-2 rounded-xl border border-slate-300 text-xs text-slate-600">取消</button>
-        <button onclick="DomesticDrugComparator.submitCreateProduct(document.getElementById('modal-prod-name').value, document.getElementById('modal-prod-barcode').value, document.getElementById('modal-prod-image').value)" class="flex-1 py-2 rounded-xl bg-rose-600 text-white font-bold text-xs hover:bg-rose-700">建立並開始比價</button>
-      </div>
-    </div>
-  </div>
+    function render() {
+      const container = document.getElementById('promotions-list');
+      const emptyState = document.getElementById('empty-state');
 
-  <!-- JavaScript 模組 -->
-  <script src="js/mockData.js"></script>
-  <script src="js/currency.js"></script>
-  <script src="js/crossBorder.js"></script>
-  <script src="js/domesticDrug.js"></script>
-  <script src="js/basketOptimizer.js"></script>
-  <script src="js/scanner.js"></script>
-  <script src="js/app.js"></script>
+      const filtered = allPromotions.filter(p => {
+        // Tab 篩選
+        if (currentTab === 'ACTIVE' && p.status !== 'ACTIVE') return false;
+        if (currentTab === 'FULL' && (p.status !== 'FULL' && p.status !== 'EXPIRED')) return false;
 
+        // Payment 篩選
+        if (currentPaymentFilter && p.payment !== currentPaymentFilter) return false;
+
+        // 搜尋
+        if (searchQuery) {
+          const hay = `${p.night_market} ${p.title} ${p.payment} ${p.city || ''} ${p.discount}`.toLowerCase();
+          if (!hay.includes(searchQuery)) return false;
+        }
+
+        return true;
+      });
+
+      if (filtered.length === 0) {
+        container.innerHTML = '';
+        emptyState.classList.remove('hidden');
+        return;
+      }
+
+      emptyState.classList.add('hidden');
+      container.innerHTML = filtered.map(p => {
+        const isFull = p.status === 'FULL';
+        const isExpired = p.status === 'EXPIRED';
+
+        let badgeHtml = '';
+        if (p.status === 'ACTIVE') {
+          badgeHtml = '<span class="badge-active text-[11px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1">🟢 尚有名額</span>';
+        } else if (isFull) {
+          badgeHtml = '<span class="badge-full text-[11px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1">⚠️ 已額滿</span>';
+        } else {
+          badgeHtml = '<span class="badge-expired text-[11px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1">⚪ 已結束</span>';
+        }
+
+        const opacityClass = (isFull || isExpired) ? 'opacity-85 border-red-900/30' : 'border-gray-800 hover:border-gray-700';
+
+        return `
+          <div class="bg-cardbg rounded-2xl p-4 border ${opacityClass} transition space-y-3 shadow-sm relative overflow-hidden">
+            ${isFull ? '<div class="absolute right-0 top-0 bg-red-600 text-white text-[10px] px-2 py-0.5 rounded-bl-lg font-bold">額滿警示</div>' : ''}
+            
+            <div class="flex items-start justify-between gap-2">
+              <div>
+                <div class="flex items-center gap-1.5 flex-wrap">
+                  <span class="text-xs bg-gray-800 text-gray-300 font-semibold px-2 py-0.5 rounded-md">${p.city || '全台'}</span>
+                  <span class="text-xs font-bold text-neon">${p.night_market}</span>
+                  <span class="text-xs text-gray-400">· ${p.payment}</span>
+                </div>
+                <h3 class="text-sm font-bold text-white mt-1 leading-snug">${p.title}</h3>
+              </div>
+              <div class="shrink-0 pt-0.5">
+                ${badgeHtml}
+              </div>
+            </div>
+
+            <!-- 回饋亮點 -->
+            <div class="flex items-center justify-between bg-darkbg/60 p-2.5 rounded-xl border border-gray-800/80">
+              <span class="text-xs text-gray-400">活動回饋</span>
+              <span class="text-base font-black text-brand tracking-tight">${p.discount}</span>
+            </div>
+
+            <!-- 狀態備註 -->
+            <div class="text-xs ${isFull ? 'text-red-300 bg-red-950/30 p-2 rounded-lg border border-red-900/40' : 'text-gray-400'} leading-relaxed">
+              ${p.status_note || p.rules_summary}
+            </div>
+
+            <div class="pt-1 flex items-center justify-between text-[11px] text-gray-500 border-t border-gray-800/60">
+              <span>📅 ${p.start_date} ~ ${p.end_date}</span>
+              <a href="${p.source_url}" target="_blank" class="text-blue-400 hover:text-blue-300 font-medium flex items-center gap-0.5">
+                官網詳情 ↗
+              </a>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    async function refreshData() {
+      const icon = document.getElementById('refresh-icon');
+      icon.classList.add('animate-spin');
+      await loadData();
+      setTimeout(() => icon.classList.remove('animate-spin'), 600);
+    }
+
+    // 初始化載入
+    loadData();
+  </script>
 </body>
 </html>

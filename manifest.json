@@ -1,16 +1,16 @@
 {
-  "name": "出國血拚即時比價助手",
-  "short_name": "出國比價",
+  "name": "夜市支付優惠即時通",
+  "short_name": "夜市支付通",
   "start_url": "./index.html",
   "display": "standalone",
-  "background_color": "#4f46e5",
-  "theme_color": "#4f46e5",
-  "description": "出國日本血拚必備：UNIQLO、無印良品、宜得利跨國比價；日本各大藥妝多店價格記錄比價；自動依購物總額推薦最佳優惠店家！",
+  "background_color": "#12141a",
+  "theme_color": "#12141a",
+  "description": "全台夜市 x 行動支付即時回饋與額滿通知",
   "icons": [
     {
-      "src": "https://cdn-icons-png.flaticon.com/512/3081/3081840.png",
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🍢</text></svg>",
       "sizes": "192x192 512x512",
-      "type": "image/png"
+      "type": "image/svg+xml"
     }
   ]
 }
