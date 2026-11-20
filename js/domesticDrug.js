@@ -1,8 +1,11 @@
 // 日本國內藥妝多店比價模組 (松本清、唐吉訶德、大國等)
 const DomesticDrugComparator = {
   STORAGE_KEY: "travel_domestic_drug_records",
-  records: [], // [{ id, barcode, name, image, stores: [{ storeName, price, isTaxIncluded, note, date }] }]
+  records: [], // [{ id, barcode, name, image, stores: [{ storeName, price, isTaxIncluded, note, photo, date }] }]
   selectedProductId: null,
+  currentShelfPhoto: null,
+  isBatchMode: false,
+  selectedBatchIds: new Set(),
 
   init() {
     this.loadRecords();
@@ -154,6 +157,7 @@ const DomesticDrugComparator = {
       price,
       isTaxIncluded,
       note,
+      photo: this.currentShelfPhoto || null,
       date: nowStr
     };
 
@@ -167,8 +171,127 @@ const DomesticDrugComparator = {
     document.getElementById("input-store-price").value = "";
     document.getElementById("input-custom-store").value = "";
     document.getElementById("input-store-note").value = "";
+    this.clearSelectedPhoto();
 
     this.renderComparisonDetail(prod.id);
+  },
+
+  // 照片拍照處理 (壓縮成縮圖 base64 存入 localStorage 防止過大)
+  handleShelfPhotoSelected(inputEl) {
+    if (!inputEl.files || inputEl.files.length === 0) return;
+    const file = inputEl.files[0];
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        const maxDim = 800; // 最寬或最高 800px 節省容量
+        let w = img.width;
+        let h = img.height;
+        if (w > maxDim || h > maxDim) {
+          if (w > h) {
+            h = Math.round((h * maxDim) / w);
+            w = maxDim;
+          } else {
+            w = Math.round((w * maxDim) / h);
+            h = maxDim;
+          }
+        }
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0, w, h);
+        const compressedBase64 = canvas.toDataURL("image/jpeg", 0.7);
+
+        this.currentShelfPhoto = compressedBase64;
+        document.getElementById("shelf-photo-thumb").src = compressedBase64;
+        document.getElementById("shelf-photo-preview-wrap").classList.remove("hidden");
+        document.getElementById("shelf-photo-label").textContent = "已拍存證照 (點擊可重拍)";
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  },
+
+  clearSelectedPhoto() {
+    this.currentShelfPhoto = null;
+    const thumb = document.getElementById("shelf-photo-thumb");
+    if (thumb) thumb.src = "";
+    const wrap = document.getElementById("shelf-photo-preview-wrap");
+    if (wrap) wrap.classList.add("hidden");
+    const label = document.getElementById("shelf-photo-label");
+    if (label) label.textContent = "拍貨架標籤 (存證防混淆)";
+    const fileInput = document.getElementById("input-shelf-photo");
+    if (fileInput) fileInput.value = "";
+  },
+
+  viewPhoto(src) {
+    if (!src) return;
+    document.getElementById("photo-viewer-img").src = src;
+    document.getElementById("photo-viewer-modal").classList.remove("hidden");
+  },
+
+  closePhotoViewer() {
+    document.getElementById("photo-viewer-modal").classList.add("hidden");
+  },
+
+  // 批次刪除與清空資料功能
+  toggleBatchMode(force = null) {
+    this.isBatchMode = force !== null ? force : !this.isBatchMode;
+    const bar = document.getElementById("batch-delete-bar");
+    if (bar) {
+      if (this.isBatchMode) {
+        bar.classList.remove("hidden");
+      } else {
+        bar.classList.add("hidden");
+        this.selectedBatchIds.clear();
+      }
+    }
+    this.renderProductsList();
+  },
+
+  toggleBatchSelect(prodId, isChecked) {
+    if (isChecked) {
+      this.selectedBatchIds.add(prodId);
+    } else {
+      this.selectedBatchIds.delete(prodId);
+    }
+  },
+
+  executeBatchDelete() {
+    if (this.selectedBatchIds.size === 0) {
+      alert("請先勾選要刪除的商品！");
+      return;
+    }
+    if (!confirm(`確定要刪除選取的 ${this.selectedBatchIds.size} 項商品比價記錄嗎？`)) {
+      return;
+    }
+    this.records = this.records.filter(r => !this.selectedBatchIds.has(r.id));
+    this.saveRecords();
+    this.selectedBatchIds.clear();
+    this.toggleBatchMode(false);
+    this.selectedProductId = this.records.length > 0 ? this.records[0].id : null;
+    this.renderProductsList();
+    if (this.selectedProductId) {
+      this.renderComparisonDetail(this.selectedProductId);
+    } else {
+      document.getElementById("drug-detail-view").classList.add("hidden");
+      document.getElementById("drug-empty-view").classList.remove("hidden");
+    }
+  },
+
+  clearAllRecords() {
+    if (!confirm("⚠️ 警告：這將會清除「所有已記錄的藥妝比價資料」，確定要全部清空嗎？")) {
+      return;
+    }
+    this.records = [];
+    this.saveRecords();
+    this.selectedBatchIds.clear();
+    this.toggleBatchMode(false);
+    this.selectedProductId = null;
+    this.renderProductsList();
+    document.getElementById("drug-detail-view").classList.add("hidden");
+    document.getElementById("drug-empty-view").classList.remove("hidden");
   },
 
   deleteStorePrice(prodId, storeIndex) {
@@ -207,6 +330,20 @@ const DomesticDrugComparator = {
     container.innerHTML = this.records.map(prod => {
       const isSelected = prod.id === this.selectedProductId;
       const count = prod.stores.length;
+      const isChecked = this.selectedBatchIds.has(prod.id);
+
+      if (this.isBatchMode) {
+        return `
+          <label class="flex-shrink-0 flex items-center space-x-1.5 px-3 py-1.5 rounded-full border text-xs font-medium cursor-pointer ${
+            isChecked ? 'bg-rose-100 border-rose-500 text-rose-800' : 'bg-white border-slate-200 text-slate-700'
+          }">
+            <input type="checkbox" ${isChecked ? 'checked' : ''} onchange="DomesticDrugComparator.toggleBatchSelect('${prod.id}', this.checked)" class="rounded text-rose-600">
+            <span class="truncate max-w-[110px]">${prod.name}</span>
+            <span class="text-[10px] text-slate-400">(${count}店)</span>
+          </label>
+        `;
+      }
+
       return `
         <button onclick="DomesticDrugComparator.selectProduct('${prod.id}')"
           class="flex-shrink-0 flex items-center space-x-2 px-3 py-1.5 rounded-full border text-xs font-medium transition-all ${
@@ -294,7 +431,14 @@ const DomesticDrugComparator = {
             <div class="flex items-center space-x-1.5">
               ${isLowest ? '<span class="text-xs px-1.5 py-0.5 rounded bg-emerald-600 text-white font-bold">最低</span>' : `<span class="text-xs text-gray-400 font-mono">#${rank+1}</span>`}
               <div>
-                <div class="text-sm font-medium text-gray-800">${s.storeName}</div>
+                <div class="text-sm font-medium text-gray-800 flex items-center gap-1.5">
+                  <span>${s.storeName}</span>
+                  ${s.photo ? `
+                    <button onclick="DomesticDrugComparator.viewPhoto('${s.photo}')" class="px-1.5 py-0.5 rounded bg-indigo-50 border border-indigo-200 text-indigo-700 text-[10px] font-bold hover:bg-indigo-100 flex items-center gap-0.5">
+                      📷 貨架照
+                    </button>
+                  ` : ''}
+                </div>
                 ${s.note ? `<div class="text-[11px] text-gray-500">${s.note}</div>` : ''}
               </div>
             </div>
