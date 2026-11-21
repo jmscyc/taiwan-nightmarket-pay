@@ -53,6 +53,17 @@
       -ms-overflow-style: none;
       scrollbar-width: none;
     }
+    @keyframes goldGlow {
+      0%, 100% {
+        box-shadow: 0 0 15px rgba(245, 158, 11, 0.25), inset 0 0 10px rgba(245, 158, 11, 0.1);
+      }
+      50% {
+        box-shadow: 0 0 25px rgba(245, 158, 11, 0.45), inset 0 0 15px rgba(245, 158, 11, 0.2);
+      }
+    }
+    .champion-glow {
+      animation: goldGlow 3s ease-in-out infinite;
+    }
   </style>
 </head>
 <body class="bg-darkbg text-gray-100 min-h-screen pb-24 select-none">
@@ -100,6 +111,36 @@
         <p class="text-xs text-gray-400 mt-2.5 leading-relaxed">
           已自動過濾額滿及過期項目，僅展示當前<strong class="text-green-400 font-semibold">尚有名額</strong>的夜市與商圈，依回饋率由高至低排名。
         </p>
+
+        <!-- 💡 吃喝消費折抵即時試算器 -->
+        <div class="mt-3 pt-3 border-t border-red-900/40 space-y-2">
+          <div class="flex items-center justify-between text-xs">
+            <span class="font-bold text-gray-300 flex items-center gap-1">
+              <span>🧮</span> 夜市吃喝消費試算：
+            </span>
+            <span class="text-[11px] text-amber-400 font-medium">即時計算各夜市幫你省多少</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <div class="relative flex-1">
+              <span class="absolute left-3 top-2 text-xs text-gray-400">NT$</span>
+              <input 
+                type="number" 
+                id="spend-calc-input" 
+                value="200" 
+                min="10" 
+                max="5000" 
+                step="10" 
+                oninput="updateCalcSpend(this.value)"
+                class="w-full bg-darkbg/90 border border-red-900/60 rounded-xl py-1.5 pl-10 pr-3 text-sm text-white font-black focus:outline-none focus:border-red-500 transition shadow-inner"
+              >
+            </div>
+            <div class="flex gap-1 text-[11px]">
+              <button onclick="setCalcSpend(100)" class="px-2.5 py-1.5 bg-gray-800 hover:bg-gray-700 rounded-lg text-gray-300 active:scale-95 transition">$100</button>
+              <button onclick="setCalcSpend(200)" class="px-2.5 py-1.5 bg-gray-800 hover:bg-gray-700 rounded-lg text-gray-300 active:scale-95 transition">$200</button>
+              <button onclick="setCalcSpend(500)" class="px-2.5 py-1.5 bg-gray-800 hover:bg-gray-700 rounded-lg text-gray-300 active:scale-95 transition">$500</button>
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- 城市切換標籤 (預設：台北市) -->
@@ -234,6 +275,36 @@
     let currentTab = 'ALL';
     let currentPaymentFilter = '';
     let searchQuery = '';
+    let calcSpend = 200; // 預設試算金額 NT$ 200
+
+    function updateCalcSpend(val) {
+      const num = parseFloat(val);
+      calcSpend = (!isNaN(num) && num > 0) ? num : 0;
+      renderRankingView();
+    }
+
+    function setCalcSpend(val) {
+      const input = document.getElementById('spend-calc-input');
+      if (input) input.value = val;
+      updateCalcSpend(val);
+    }
+
+    // 取得各大行動支付專屬官方品牌色徽章
+    function getPaymentBadge(payment) {
+      const name = (payment || '').trim();
+      if (name.includes('街口')) {
+        return `<span class="bg-red-600 text-white text-[11px] font-black px-2 py-0.5 rounded-md shadow-xs flex items-center gap-1">🔴 街口支付</span>`;
+      } else if (name.includes('台灣Pay') || name.includes('台灣 Pay')) {
+        return `<span class="bg-gradient-to-r from-red-600 via-blue-600 to-indigo-700 text-white text-[11px] font-black px-2 py-0.5 rounded-md shadow-xs flex items-center gap-1">🇹🇼 台灣Pay</span>`;
+      } else if (name.includes('LINE Pay') || name.includes('Line Pay')) {
+        return `<span class="bg-emerald-500 text-white text-[11px] font-black px-2 py-0.5 rounded-md shadow-xs flex items-center gap-1">🟢 LINE Pay</span>`;
+      } else if (name.includes('全支付')) {
+        return `<span class="bg-blue-600 text-white text-[11px] font-black px-2 py-0.5 rounded-md shadow-xs flex items-center gap-1">🔵 全支付</span>`;
+      } else if (name.includes('悠遊付')) {
+        return `<span class="bg-sky-500 text-white text-[11px] font-black px-2 py-0.5 rounded-md shadow-xs flex items-center gap-1">🩵 悠遊付</span>`;
+      }
+      return `<span class="bg-gray-800 text-gray-300 text-[11px] font-bold px-2 py-0.5 rounded-md">${name || '行動支付'}</span>`;
+    }
 
     // 精準解析回饋趴數（修正滿額折價誤判問題）
     function parseRate(promo) {
@@ -426,7 +497,7 @@
 
         if (rank === 1) {
           rankBadge = `<span class="bg-gradient-to-r from-amber-500 to-yellow-300 text-black text-xs font-black px-2 py-0.5 rounded-full shadow-md flex items-center gap-1">🥇 冠軍</span>`;
-          borderClass = 'border-amber-500/40 bg-gradient-to-br from-amber-950/20 via-cardbg to-cardbg';
+          borderClass = 'border-amber-500/60 bg-gradient-to-br from-amber-950/30 via-cardbg to-cardbg champion-glow';
         } else if (rank === 2) {
           rankBadge = `<span class="bg-gradient-to-r from-slate-300 to-slate-400 text-black text-xs font-black px-2 py-0.5 rounded-full shadow-md flex items-center gap-1">🥈 亞軍</span>`;
           borderClass = 'border-slate-500/40';
@@ -438,6 +509,26 @@
         }
 
         const countdownBadge = getRemainingDaysBadge(p.end_date);
+        const paymentBadge = getPaymentBadge(p.payment);
+        const rate = parseRate(p);
+
+        // 動態計算吃喝折抵
+        let savingsHtml = '';
+        if (calcSpend > 0 && rate > 0) {
+          const estimatedSave = Math.round(calcSpend * (rate / 100));
+          const finalCost = Math.max(0, calcSpend - estimatedSave);
+          savingsHtml = `
+            <div class="bg-amber-950/30 border border-amber-800/40 rounded-xl p-2.5 flex items-center justify-between text-xs">
+              <span class="text-amber-300/90 font-medium flex items-center gap-1">
+                <span>🍽️</span> 消費 <strong>NT$ ${calcSpend}</strong>
+              </span>
+              <div class="text-right">
+                <span class="text-emerald-400 font-black text-sm">現省 NT$ ${estimatedSave}</span>
+                <span class="text-gray-400 text-[11px] block">(實付 NT$ ${finalCost})</span>
+              </div>
+            </div>
+          `;
+        }
 
         return `
           <div class="bg-cardbg rounded-2xl p-4 border ${borderClass} transition space-y-3 shadow-sm relative">
@@ -455,7 +546,7 @@
 
             <div class="flex items-baseline justify-between pt-1">
               <div>
-                <span class="text-xs text-gray-400">${p.payment} 專屬優惠</span>
+                <div class="mb-1">${paymentBadge}</div>
                 <h3 class="text-sm font-bold text-white leading-snug mt-0.5">${p.title}</h3>
               </div>
               <div class="text-right shrink-0 pl-3">
@@ -463,6 +554,9 @@
                 <span class="text-2xl font-black text-brand tracking-tight">${p.discount}</span>
               </div>
             </div>
+
+            <!-- 動態吃喝現省試算 -->
+            ${savingsHtml}
 
             <!-- 活動重點規則 -->
             <p class="text-xs text-gray-300 bg-darkbg/70 p-2.5 rounded-xl border border-gray-800/80 leading-relaxed">
@@ -535,7 +629,7 @@
                 <div class="flex items-center gap-1.5 flex-wrap">
                   <span class="text-xs bg-gray-800 text-gray-300 font-semibold px-2 py-0.5 rounded-md">${p.city || '全台'}</span>
                   <span class="text-xs font-bold text-neon">${p.night_market}</span>
-                  <span class="text-xs text-gray-400">· ${p.payment}</span>
+                  ${getPaymentBadge(p.payment)}
                 </div>
                 <h3 class="text-sm font-bold text-white mt-1 leading-snug">${p.title}</h3>
               </div>
